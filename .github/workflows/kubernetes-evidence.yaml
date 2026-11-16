@@ -61,8 +61,7 @@ jobs:
             workspaces:
               - name: pipeline-workspace
                 emptyDir: {}
-            taskRunTemplate:
-              serviceAccountName: pipeline-deployer
+            serviceAccountName: pipeline-deployer
           EOF
           kubectl wait --for=condition=Succeeded pipelinerun/accounts-cd-run --timeout=300s
           kubectl logs -l tekton.dev/pipelineRun=accounts-cd-run --all-containers=true --prefix=true > pipelinerun.txt
