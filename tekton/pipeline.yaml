@@ -1,5 +1,6 @@
-# Required Tekton Catalog Tasks: git-clone and buildah.
-# The PipelineRun workspace must be writable by the buildah task.
+# Tekton CD pipeline: clone the source and roll out the pre-built image.
+# The image is built and loaded into the ephemeral kind cluster by CI before
+# this PipelineRun. The pipeline itself performs the Kubernetes deployment.
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
@@ -13,53 +14,53 @@ spec:
       default: main
     - name: image
       type: string
-      description: Fully-qualified image name and tag available to the cluster
+      description: Image name and tag already available to the Kubernetes cluster
   workspaces:
     - name: pipeline-workspace
   tasks:
-    - name: clone
-      taskRef:
-        name: git-clone
+    - name: clone-source
       params:
         - name: url
           value: $(params.repo-url)
         - name: revision
           value: $(params.branch)
-        - name: deleteExisting
-          value: "true"
       workspaces:
         - name: output
           workspace: pipeline-workspace
-    - name: build-image
-      runAfter: [clone]
-      taskRef:
-        name: buildah
+      taskSpec:
+        params:
+          - name: url
+            type: string
+          - name: revision
+            type: string
+        workspaces:
+          - name: output
+        steps:
+          - name: clone
+            image: alpine/git:2.45.2
+            script: |
+              set -eu
+              git clone --depth 1 --branch "$(params.revision)" "$(params.url)" "$(workspaces.output.path)"
+    - name: deploy-to-kubernetes
+      runAfter: [clone-source]
       params:
-        - name: IMAGE
+        - name: image
           value: $(params.image)
-        - name: DOCKERFILE
-          value: ./Dockerfile
-        - name: CONTEXT
-          value: .
-        - name: TLSVERIFY
-          value: "true"
-      workspaces:
-        - name: source
-          workspace: pipeline-workspace
-    - name: deploy
-      runAfter: [build-image]
       workspaces:
         - name: source
           workspace: pipeline-workspace
       taskSpec:
+        params:
+          - name: image
+            type: string
         workspaces:
           - name: source
         steps:
-          - name: apply-manifests
+          - name: apply-and-rollout
             image: bitnami/kubectl:1.29
             workingDir: $(workspaces.source.path)
             script: |
               set -eu
               kubectl apply -f kubernetes/deployment.yaml
-              kubectl set image deployment/accounts accounts=$(params.image)
+              kubectl set image deployment/accounts accounts="$(params.image)"
               kubectl rollout status deployment/accounts --timeout=180s
