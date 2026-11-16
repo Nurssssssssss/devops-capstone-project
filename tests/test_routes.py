@@ -123,4 +123,57 @@ class TestAccountService(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
 
-    # ADD YOUR TEST CASES HERE ...
+    def test_list_accounts(self):
+        """It should list all customer accounts."""
+        self._create_accounts(2)
+        response = self.client.get(BASE_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.get_json()), 2)
+
+    def test_read_account(self):
+        """It should read an existing account."""
+        account = self._create_accounts(1)[0]
+        response = self.client.get(f"{BASE_URL}/{account.id}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.get_json()["id"], account.id)
+
+    def test_read_missing_account(self):
+        """It should return 404 for an unknown account."""
+        response = self.client.get(f"{BASE_URL}/999999")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_update_account(self):
+        """It should update an existing account."""
+        account = self._create_accounts(1)[0]
+        payload = account.serialize()
+        payload["name"] = "Updated Customer"
+        response = self.client.put(
+            f"{BASE_URL}/{account.id}", json=payload,
+            content_type="application/json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.get_json()["name"], "Updated Customer")
+
+    def test_delete_account(self):
+        """It should delete an existing account."""
+        account = self._create_accounts(1)[0]
+        response = self.client.delete(f"{BASE_URL}/{account.id}")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        missing = self.client.get(f"{BASE_URL}/{account.id}")
+        self.assertEqual(missing.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_security_headers(self):
+        """It should return browser security headers."""
+        response = self.client.get("/")
+        self.assertEqual(response.headers.get("X-Frame-Options"), "SAMEORIGIN")
+        self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
+
+    def test_cors_policy(self):
+        """It should allow the configured development origin."""
+        response = self.client.get("/", headers={"Origin": "http://localhost:3000"})
+        self.assertEqual(
+            response.headers.get("Access-Control-Allow-Origin"),
+            "http://localhost:3000"
+        )
+
+
