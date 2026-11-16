@@ -1,38 +1,65 @@
-#
-# This pipeline needs the following tasks from Tekton Catalog
-#   - git-clone
-#   - flake8
-#
----
+# Required Tekton Catalog Tasks: git-clone and buildah.
+# The PipelineRun workspace must be writable by the buildah task.
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
-metadata:  
+metadata:
   name: cd-pipeline
 spec:
-  workspaces:
-    - name: pipeline-workspace
   params:
     - name: repo-url
+      type: string
     - name: branch
+      type: string
       default: main
+    - name: image
+      type: string
+      description: Fully-qualified image name and tag available to the cluster
+  workspaces:
+    - name: pipeline-workspace
   tasks:
-    - name: init
-      workspaces:
-        - name: source
-          workspace: pipeline-workspace          
-      taskRef:
-        name: cleanup
-
     - name: clone
-      workspaces:
-        - name: output
-          workspace: pipeline-workspace          
       taskRef:
         name: git-clone
       params:
-      - name: url
-        value: $(params.repo-url)
-      - name: revision
-        value: $(params.branch)
-      runAfter:
-        - init
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.branch)
+        - name: deleteExisting
+          value: "true"
+      workspaces:
+        - name: output
+          workspace: pipeline-workspace
+    - name: build-image
+      runAfter: [clone]
+      taskRef:
+        name: buildah
+      params:
+        - name: IMAGE
+          value: $(params.image)
+        - name: DOCKERFILE
+          value: ./Dockerfile
+        - name: CONTEXT
+          value: .
+        - name: TLSVERIFY
+          value: "true"
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+    - name: deploy
+      runAfter: [build-image]
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: apply-manifests
+            image: bitnami/kubectl:1.29
+            workingDir: $(workspaces.source.path)
+            script: |
+              set -eu
+              kubectl apply -f kubernetes/deployment.yaml
+              kubectl set image deployment/accounts accounts=$(params.image)
+              kubectl rollout status deployment/accounts --timeout=180s
