@@ -31,9 +31,52 @@ jobs:
           kubectl set image deployment/accounts accounts=accounts:1
           kubectl rollout status deployment/accounts --timeout=180s
           kubectl get deployment,pods,replicasets,service -o wide | tee kube-deploy-accounts
-      - name: Upload Kubernetes evidence
+      - name: Install Tekton Pipelines
+        run: |
+          kubectl apply --filename https://storage.googleapis.com/tekton-releases/pipeline/latest/release.yaml
+          kubectl rollout status deployment/tekton-pipelines-controller -n tekton-pipelines --timeout=300s
+          kubectl rollout status deployment/tekton-pipelines-webhook -n tekton-pipelines --timeout=300s
+      - name: Run Tekton CD Pipeline
+        run: |
+          kubectl create serviceaccount pipeline-deployer
+          kubectl create clusterrolebinding pipeline-deployer \
+            --clusterrole=cluster-admin \
+            --serviceaccount=default:pipeline-deployer
+          kubectl apply -f tekton/pipeline.yaml
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: tekton.dev/v1beta1
+          kind: PipelineRun
+          metadata:
+            name: accounts-cd-run
+          spec:
+            pipelineRef:
+              name: cd-pipeline
+            params:
+              - name: repo-url
+                value: https://github.com/Nurssssssssss/devops-capstone-project
+              - name: branch
+                value: main
+              - name: image
+                value: accounts:1
+            workspaces:
+              - name: pipeline-workspace
+                volumeClaimTemplate:
+                  spec:
+                    accessModes:
+                      - ReadWriteOnce
+                    resources:
+                      requests:
+                        storage: 1Gi
+            taskRunTemplate:
+              serviceAccountName: pipeline-deployer
+          EOF
+          kubectl wait --for=condition=Succeeded pipelinerun/accounts-cd-run --timeout=300s
+          kubectl logs -l tekton.dev/pipelineRun=accounts-cd-run --all-containers=true --prefix=true > pipelinerun.txt
+      - name: Upload Kubernetes and Tekton evidence
         uses: actions/upload-artifact@v4
         with:
           name: accounts-kubernetes-evidence
           if-no-files-found: error
-          path: kube-deploy-accounts
+          path: |
+            kube-deploy-accounts
+            pipelinerun.txt
