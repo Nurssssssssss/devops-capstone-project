@@ -46,7 +46,7 @@ spec:
               set -eu
               git clone --depth 1 --branch "$(params.branch)" "$(params.repo-url)" "$(workspaces.source.path)/source"
           - name: deploy
-            image: bitnami/kubectl:1.29
+            image: alpine/k8s:1.29.4
             workingDir: $(workspaces.source.path)/source
             script: |
               set -eu
