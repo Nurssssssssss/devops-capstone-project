@@ -39,4 +39,4 @@ jobs:
       - name: Run unit tests
         env:
           DATABASE_URI: postgresql://postgres:postgres@localhost:5432/postgres
-        run: nosetests -v --with-spec --spec-color
+        run: PYTHONPATH="$PWD" nosetests -v --with-spec --spec-color
