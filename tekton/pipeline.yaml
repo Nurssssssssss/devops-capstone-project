@@ -1,6 +1,6 @@
-# Tekton CD pipeline: clone the source and roll out the pre-built image.
-# The image is built and loaded into the ephemeral kind cluster by CI before
-# this PipelineRun. The pipeline itself performs the Kubernetes deployment.
+# Tekton CD pipeline: clone the repository and roll out the pre-built image.
+# Clone and deploy run as sequential steps in one TaskRun so an ephemeral
+# workspace can be used without a persistent volume.
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
@@ -18,32 +18,12 @@ spec:
   workspaces:
     - name: pipeline-workspace
   tasks:
-    - name: clone-source
+    - name: clone-and-deploy
       params:
-        - name: url
+        - name: repo-url
           value: $(params.repo-url)
-        - name: revision
+        - name: branch
           value: $(params.branch)
-      workspaces:
-        - name: output
-          workspace: pipeline-workspace
-      taskSpec:
-        params:
-          - name: url
-            type: string
-          - name: revision
-            type: string
-        workspaces:
-          - name: output
-        steps:
-          - name: clone
-            image: alpine/git:2.45.2
-            script: |
-              set -eu
-              git clone --depth 1 --branch "$(params.revision)" "$(params.url)" "$(workspaces.output.path)"
-    - name: deploy-to-kubernetes
-      runAfter: [clone-source]
-      params:
         - name: image
           value: $(params.image)
       workspaces:
@@ -51,14 +31,23 @@ spec:
           workspace: pipeline-workspace
       taskSpec:
         params:
+          - name: repo-url
+            type: string
+          - name: branch
+            type: string
           - name: image
             type: string
         workspaces:
           - name: source
         steps:
-          - name: apply-and-rollout
+          - name: clone
+            image: alpine/git:2.45.2
+            script: |
+              set -eu
+              git clone --depth 1 --branch "$(params.branch)" "$(params.repo-url)" "$(workspaces.source.path)/source"
+          - name: deploy
             image: bitnami/kubectl:1.29
-            workingDir: $(workspaces.source.path)
+            workingDir: $(workspaces.source.path)/source
             script: |
               set -eu
               kubectl apply -f kubernetes/deployment.yaml
