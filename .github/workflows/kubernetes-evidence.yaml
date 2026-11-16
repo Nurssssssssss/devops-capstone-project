@@ -60,13 +60,7 @@ jobs:
                 value: accounts:1
             workspaces:
               - name: pipeline-workspace
-                volumeClaimTemplate:
-                  spec:
-                    accessModes:
-                      - ReadWriteOnce
-                    resources:
-                      requests:
-                        storage: 1Gi
+                emptyDir: {}
             taskRunTemplate:
               serviceAccountName: pipeline-deployer
           EOF
