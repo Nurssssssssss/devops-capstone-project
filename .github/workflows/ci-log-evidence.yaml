@@ -1,0 +1,35 @@
+name: CI Log Evidence
+
+on:
+  workflow_run:
+    workflows: ["CI Build"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Completed CI workflow run ID
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  capture:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Capture complete CI run log
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+        run: |
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --log > ci-workflow-done
+          test -s ci-workflow-done
+      - name: Upload CI log evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: accounts-ci-log-evidence
+          if-no-files-found: error
+          path: ci-workflow-done
