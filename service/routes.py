@@ -5,7 +5,7 @@ from flask import abort, jsonify, make_response, request, url_for
 
 from service import app
 from service.common import status
-from service.models import Account, DataValidationError
+from service.models import Account
 
 
 @app.route("/health", methods=["GET"])
