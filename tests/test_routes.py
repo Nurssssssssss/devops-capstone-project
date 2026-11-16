@@ -170,7 +170,7 @@ class TestAccountService(TestCase):
 
     def test_cors_policy(self):
         """It should allow the configured development origin."""
-        response = self.client.get("/", headers={"Origin": "http://localhost:3000"})
+        response = self.client.get(BASE_URL, headers={"Origin": "http://localhost:3000"})
         self.assertEqual(
             response.headers.get("Access-Control-Allow-Origin"),
             "http://localhost:3000"
