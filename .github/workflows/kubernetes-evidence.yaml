@@ -17,7 +17,7 @@ jobs:
       - name: Build and load the application image
         run: |
           docker build -t accounts:1 .
-          kind load docker-image accounts:1
+          kind load docker-image accounts:1 --name chart-testing
       - name: Deploy PostgreSQL
         run: |
           kubectl create secret generic accounts-db \
