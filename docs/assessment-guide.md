@@ -57,8 +57,11 @@ Issues are present, but this repository integration cannot create or capture the
 GitHub Projects board UI. Open the repository's Projects page, add the listed issues,
 and move them into the requested columns before taking the named screenshots.
 
-The Kubernetes deployment output (question 31) and Tekton PipelineRun log
-(question 32) require a live Kubernetes cluster with Tekton installed, an image
-registry, credentials, and permission to deploy. The manifests and pipeline source
-are committed, but no cluster was available to execute them. Do not paste fabricated
-`kubectl` or `tkn` output as if it were produced by a real cluster.
+The `Kubernetes Deployment Evidence` workflow provisions a temporary kind cluster,
+builds and loads the image, deploys PostgreSQL and the Accounts service, installs
+Tekton, and attempts the CD PipelineRun. When successful, it uploads an artifact
+named `accounts-kubernetes-evidence` containing `kube-deploy-accounts` and
+`pipelinerun.txt`. Check that workflow's final conclusion before using those files.
+The GitHub Projects board screenshots still have to be captured from the actual
+Projects UI; the Issues list and sprint allocation above are planning support, not
+substitute screenshots.
