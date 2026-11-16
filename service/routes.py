@@ -23,8 +23,10 @@ def index():
 def check_content_type(media_type="application/json"):
     """Reject requests that do not use the expected media type."""
     if request.mimetype != media_type:
-        abort(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-              description=f"Content-Type must be {media_type}")
+        abort(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            description=f"Content-Type must be {media_type}",
+        )
 
 
 @app.route("/accounts", methods=["POST"])
