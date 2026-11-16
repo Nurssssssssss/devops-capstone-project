@@ -1,37 +1,46 @@
 """
-Package: service
-Package for the application models and service routes
-This module creates and configures the Flask app and sets up the logging
-and SQL database
+Flask application factory configuration and service initialization.
 """
 import sys
+
 from flask import Flask
+from flask_cors import CORS
+from flask_talisman import Talisman
+
 from service import config
 from service.common import log_handlers
 
-# Create Flask application
 app = Flask(__name__)
 app.config.from_object(config)
 
-# Import the routes After the Flask app is created
-# pylint: disable=wrong-import-position, cyclic-import, wrong-import-order
-from service import routes, models  # noqa: F401 E402
+# Restrict cross-origin access to configured origins; '*' is not used.
+CORS(app, resources={r"/accounts*": {"origins": app.config.get(
+    "CORS_ORIGINS", ["http://localhost:3000"]
+)}})
 
-# pylint: disable=wrong-import-position
-from service.common import error_handlers, cli_commands  # noqa: F401 E402
+# Apply standard browser security headers. HTTPS redirection is disabled for
+# local development; production should terminate TLS at the ingress/load balancer.
+Talisman(
+    app,
+    force_https=app.config.get("TALISMAN_FORCE_HTTPS", False),
+    content_security_policy={
+        "default-src": ["'self'"],
+        "object-src": ["'none'"],
+        "frame-ancestors": ["'none'"],
+    },
+)
 
-# Set up logging for production
+# Import routes after app creation to avoid circular imports.
+from service import routes, models  # noqa: E402,F401
+from service.common import error_handlers, cli_commands  # noqa: E402,F401
+
 log_handlers.init_logging(app, "gunicorn.error")
-
-app.logger.info(70 * "*")
-app.logger.info("  A C C O U N T   S E R V I C E   R U N N I N G  ".center(70, "*"))
-app.logger.info(70 * "*")
+app.logger.info("ACCOUNT SERVICE STARTING".center(70, "*"))
 
 try:
-    models.init_db(app)  # make our database tables
+    models.init_db(app)
 except Exception as error:  # pylint: disable=broad-except
     app.logger.critical("%s: Cannot continue", error)
-    # gunicorn requires exit code 4 to stop spawning workers when they die
     sys.exit(4)
 
 app.logger.info("Service initialized!")
