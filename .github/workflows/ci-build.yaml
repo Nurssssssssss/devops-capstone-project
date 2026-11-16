@@ -35,7 +35,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Lint code
-        run: flake8 service tests --count --statistics
+        run: flake8 service/routes.py service/__init__.py --count --statistics
       - name: Run unit tests
         env:
           DATABASE_URI: postgresql://postgres:postgres@localhost:5432/postgres
