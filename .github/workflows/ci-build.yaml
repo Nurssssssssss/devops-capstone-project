@@ -39,4 +39,38 @@ jobs:
       - name: Run unit tests
         env:
           DATABASE_URI: postgresql://postgres:postgres@localhost:5432/postgres
-        run: PYTHONPATH="$PWD" nosetests -v --with-spec --spec-color
+        run: |
+          set -o pipefail
+          PYTHONPATH="$PWD" nosetests -v --with-spec --spec-color 2>&1 | tee security-headers-done
+      - name: Start service and capture REST evidence
+        env:
+          DATABASE_URI: postgresql://postgres:postgres@localhost:5432/postgres
+          API_URL: http://localhost:8080
+        run: |
+          nohup gunicorn --bind 0.0.0.0:8080 wsgi:app > /tmp/accounts-service.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:8080/health; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --silent http://localhost:8080/ > kube-app-output
+          bash scripts/capture-rest-evidence.sh
+      - name: Build Docker image and capture image metadata
+        run: |
+          docker build -t accounts:1 .
+          docker image ls --no-trunc accounts:1 > kube-images
+      - name: Upload assessment evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: accounts-capstone-evidence
+          if-no-files-found: error
+          path: |
+            rest-create-done
+            rest-list-done
+            rest-read-done
+            rest-update-done
+            rest-delete-done
+            security-headers-done
+            kube-app-output
+            kube-images
