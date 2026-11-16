@@ -61,16 +61,37 @@ jobs:
             workspaces:
               - name: pipeline-workspace
                 emptyDir: {}
-            taskRunTemplate:
-              serviceAccountName: pipeline-deployer
+            serviceAccountName: pipeline-deployer
           EOF
-          kubectl wait --for=condition=Succeeded pipelinerun/accounts-cd-run --timeout=300s
-          kubectl logs -l tekton.dev/pipelineRun=accounts-cd-run --all-containers=true --prefix=true > pipelinerun.txt
+          set +e
+          kubectl wait --for=condition=Succeeded pipelinerun/accounts-cd-run --timeout=240s
+          wait_status=$?
+          set -e
+          kubectl get pipelinerun accounts-cd-run -o yaml > pipelinerun-status.yaml 2>&1 || true
+          kubectl describe pipelinerun accounts-cd-run > pipelinerun-describe.txt 2>&1 || true
+          kubectl get taskruns -o wide > tekton-taskruns.txt 2>&1 || true
+          kubectl get pods -A -o wide > cluster-pods.txt 2>&1 || true
+          kubectl get events --sort-by=.lastTimestamp > cluster-events.txt 2>&1 || true
+          kubectl get pods -A -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name --no-headers | while read ns pod; do
+            kubectl logs -n "$ns" "$pod" --all-containers=true --prefix=true >> tekton-pod-logs.txt 2>&1 || true
+          done
+          if [ "$wait_status" -ne 0 ]; then
+            echo "Tekton PipelineRun did not reach Succeeded; inspect diagnostic artifacts." >&2
+            exit "$wait_status"
+          fi
+          kubectl logs -l tekton.dev/pipelineRun=accounts-cd-run --all-containers=true --prefix=true > pipelinerun.txt 2>&1 || true
       - name: Upload Kubernetes and Tekton evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: accounts-kubernetes-evidence
-          if-no-files-found: error
+          if-no-files-found: warn
           path: |
             kube-deploy-accounts
             pipelinerun.txt
+            pipelinerun-status.yaml
+            pipelinerun-describe.txt
+            tekton-taskruns.txt
+            cluster-pods.txt
+            cluster-events.txt
+            tekton-pod-logs.txt
