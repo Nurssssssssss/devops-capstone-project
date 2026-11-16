@@ -1,0 +1,39 @@
+name: Kubernetes Deployment Evidence
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Create ephemeral Kubernetes cluster
+        uses: helm/kind-action@v1.12.0
+      - name: Build and load the application image
+        run: |
+          docker build -t accounts:1 .
+          kind load docker-image accounts:1
+      - name: Deploy PostgreSQL
+        run: |
+          kubectl create secret generic accounts-db \
+            --from-literal=database-uri='postgresql://postgres:postgres@postgres:5432/postgres' \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f kubernetes/postgres.yaml
+          kubectl rollout status deployment/postgres --timeout=180s
+      - name: Deploy Accounts microservice
+        run: |
+          kubectl apply -f kubernetes/deployment.yaml
+          kubectl set image deployment/accounts accounts=accounts:1
+          kubectl rollout status deployment/accounts --timeout=180s
+          kubectl get deployment,pods,replicasets,service -o wide | tee kube-deploy-accounts
+      - name: Upload Kubernetes evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: accounts-kubernetes-evidence
+          if-no-files-found: error
+          path: kube-deploy-accounts
