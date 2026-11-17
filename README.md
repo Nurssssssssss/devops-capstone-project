@@ -1,4 +1,4 @@
-# Customer Accounts Microservice
+# DevOps Capstone
 
 [![Build Status](https://github.com/Nurssssssssss/devops-capstone-project/actions/workflows/ci-build.yaml/badge.svg)](https://github.com/Nurssssssssss/devops-capstone-project/actions/workflows/ci-build.yaml)
 
